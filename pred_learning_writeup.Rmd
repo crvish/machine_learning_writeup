@@ -1,0 +1,105 @@
+---
+title: "Pred_learning_writeup"
+author: "c r vish"
+date: "February 14, 2015"
+output: html_document
+---
+#Synopsis
+## Given exercise data to figure out the manner in which they did the exercise
+The aim of this exercise is create a model that can take the input   from accelerometers on the belt, forearm, arm, and dumbell of 6 participants and creat a prediction engine which can decide which of the five categories the exercise was done in. For the purpose of this project the exercises can be in one of five ways categorized as A thru E 
+The category is stored in the "classe" variable of the dataset. 
+
+###Importing the data for train and test 
+```{r load the data,echo=TRUE}
+train_data <- read.csv("training.csv")
+```
+#splitting into original training data into train and test 
+```{r include libraries,echo=FALSE,results='hide'}
+
+library(caret)
+library(kernlab)
+library(dplyr)
+library(tidyr)
+library(randomForest)
+```
+```{r splitting training data,echo=TRUE}
+inTrain <- createDataPartition(y=train_data$classe,p=.75,list=FALSE)
+tr_training <- train_data[inTrain,]
+tr_testing <- train_data[-inTrain,]
+dim(tr_testing)
+```
+##Modelling using rpart and cross validation
+```{r running the model, echo=TRUE}
+modelFit <- train((classe)~., data=tr_training, method="rpart",trControl = trainControl(method = "cv"))
+modelFit
+prediction = predict(modelFit,newdata=tr_testing)
+confusionMatrix(prediction,tr_testing$classe)
+```
+###In this method the accuracy was only 50% so clearly we need to find out which fields can be removed
+
+
+
+##Field selection 
+###The way I went about field selection was to break the data in to the separate datasets from A to E and then go over each summary to find which variables had the greatest difference between min and max. Meaning that they would have the greatest impact on the outcome. 
+
+tr_training_a <- tr_training[tr_training$classe =='A',]
+tr_training_b <- tr_training[tr_training$classe =='B',]
+tr_training_c <- tr_training[tr_training$classe =='C',]
+tr_training_d <- tr_training[tr_training$classe =='D',]
+tr_training_e <- tr_training[tr_training$classe =='E',]
+summary(tr_training_a)
+summary(tr_training_b)
+summary(tr_training_c)
+summary(tr_training_d)
+summary(tr_training_e)
+
+
+
+##Creating the reduced dataset using results of the analysis above. We have narrowed it down to 37 fields 
+```{r removing the unwanted fields, echo=TRUE}
+tr_training_small <- select(tr_training,-c(pitch_belt,total_accel_belt,gyros_belt_x,gyros_belt_y,gyros_belt_z,accel_belt_x,accel_belt_y,total_accel_arm,gyros_arm_x,gyros_arm_y,gyros_arm_z,total_accel_dumbbell,total_accel_forearm,gyros_dumbbell_y,pitch_forearm,total_accel_forearm,gyros_forearm_x))
+```
+
+## The fields are 
+
+```{r listing the fields, echo=TRUE}
+names(tr_training_small)
+```
+##Modelling using rpart and cross validation
+```{r running rpart model, echo=TRUE}
+set.seed(32000)
+modelFit <- train((classe)~., data=tr_training_small, method="rpart",trControl = trainControl(method = "cv"))
+
+modelFit
+```
+##Applying the model to the testing data derived from splitting the original training data 
+
+```{r running model again test,echo=TRUE}
+tr_testing_small <- select(tr_testing,-c(pitch_belt,total_accel_belt,gyros_belt_x,gyros_belt_y,gyros_belt_z,accel_belt_x,accel_belt_y,total_accel_arm,gyros_arm_x,gyros_arm_y,gyros_arm_z,total_accel_dumbbell,total_accel_forearm,gyros_dumbbell_y,pitch_forearm,total_accel_forearm,gyros_forearm_x))
+
+prediction = predict(modelFit,newdata=tr_testing_small)
+
+confusionMatrix(prediction,tr_testing_small$classe)
+```
+
+##The accuracy is not upto the mark using the rpart algorithm
+## Now I run this smaller dataset with using randomforest  
+
+```{r running random forest model, echo=TRUE}
+set.seed(32000)
+
+modelFit <- randomForest(classe~., data=tr_training_small, importance=TRUE,proximity=TRUE)
+modelFit
+```
+##Applying the model to the testing data derived from splitting the original training data 
+
+```{r running model against test, echo=TRUE}
+tr_testing_small <- select(tr_testing,-c(pitch_belt,total_accel_belt,gyros_belt_x,gyros_belt_y,gyros_belt_z,accel_belt_x,accel_belt_y,total_accel_arm,gyros_arm_x,gyros_arm_y,gyros_arm_z,total_accel_dumbbell,total_accel_forearm,gyros_dumbbell_y,pitch_forearm,total_accel_forearm,gyros_forearm_x))
+
+prediction = predict(modelFit,newdata=tr_testing_small)
+
+confusionMatrix(prediction,tr_testing_small$classe)
+
+```
+
+##we have obtained a very high level of accuracy above 99% so we can use this as the final model 
